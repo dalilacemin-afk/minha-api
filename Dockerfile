@@ -1,12 +1,12 @@
 # Stage 1: build deps
-FROM python:3.11-slim AS builder
+FROM python:3.14 AS builder
 WORKDIR /app
 RUN pip install --upgrade pip
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: runtime
-FROM python:3.11-slim
+FROM python:3.14
 WORKDIR /app
 
 # Cria usuário não-root para segurança
