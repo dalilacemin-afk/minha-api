@@ -20,7 +20,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             # Pull da imagem mais recente
-            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/senai_fastapi:latest
+            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/senai_fastapi:${{ github.event.workflow_run.head_sha }}
 
             # Parar e remover container antigo
             sudo docker stop senai_fastapi 2>/dev/null || true
@@ -31,7 +31,7 @@ jobs:
               --name senai_fastapi \
               --restart unless-stopped \
               -p 8080:8080 \
-              ${{ secrets.DOCKERHUB_USERNAME }}/senai_fastapi:latest
+              ${{ secrets.DOCKERHUB_USERNAME }}/senai_fastapi:${{ github.event.workflow_run.head_sha }}
 
             # Health check na EC2
             sleep 5
