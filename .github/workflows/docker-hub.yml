@@ -50,8 +50,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/senai_fastapi:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/senai_fastapi:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/senai_fastapi:${{ github.event.workflow_run.head_sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/senai_fastapi:${{ github.event.workflow_run.head_sha }}
 
       - name: Resumo da publicação
         run: |
