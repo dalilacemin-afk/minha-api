@@ -5,12 +5,23 @@ on:
     workflows: ["Build e Push Docker Hub"]
     types:
       - completed
+    branches:
+      - main
+      - develop
 
 jobs:
-  Deploy:
-    name: Implantação na Instância AWS
+
+  Homologacao:
+    name: Deploy em Homologação
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'develop'
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment: homologacao
+
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -18,25 +29,40 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DOCKERHUB_USERNAME,DOCKERHUB_TOKEN,IMAGE_TAG
           script: |
-            # Pull da imagem mais recente
-            sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/senai_fastapi:latest
-
-            # Parar e remover container antigo
-            sudo docker stop senai_fastapi 2>/dev/null || true
-            sudo docker rm senai_fastapi 2>/dev/null || true
-
-            # Subir o novo container na porta 8080
-            sudo docker run -d \
-              --name senai_fastapi \
-              --restart unless-stopped \
-              -p 8080:8080 \
-              ${{ secrets.DOCKERHUB_USERNAME }}/senai_fastapi:latest
-
-            # Health check na EC2
+            echo "$DOCKERHUB_TOKEN" | sudo docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            sudo docker pull "$DOCKERHUB_USERNAME/senai_fastapi:$IMAGE_TAG"
+            sudo docker stop senai_homologacao 2>/dev/null || true
+            sudo docker rm senai_homologacao 2>/dev/null || true
+            sudo docker run -d --name senai_homologacao --restart unless-stopped -p 8080:8080 "$DOCKERHUB_USERNAME/senai_fastapi:$IMAGE_TAG"
             sleep 5
-            curl -f http://localhost:8080/health || exit 1
-            echo "Deploy finalizado com sucesso!"
+            curl -f http://localhost:8080/health
 
-            # Limpeza de imagens antigas não utilizadas
-            sudo docker image prune -f
+  Producao:
+    name: Deploy em Produção
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    environment: producao
+
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DOCKERHUB_USERNAME,DOCKERHUB_TOKEN,IMAGE_TAG
+          script: |
+            echo "$DOCKERHUB_TOKEN" | sudo docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            sudo docker pull "$DOCKERHUB_USERNAME/senai_fastapi:$IMAGE_TAG"
+            sudo docker stop senai_producao 2>/dev/null || true
+            sudo docker rm senai_producao 2>/dev/null || true
+            sudo docker run -d --name senai_producao --restart unless-stopped -p 8081:8080 "$DOCKERHUB_USERNAME/senai_fastapi:$IMAGE_TAG"
+            sleep 5
+            curl -f http://localhost:8081/health
